@@ -465,7 +465,8 @@ impl<P: Pixel> Core<P> {
         let mbw = cfg.width.div_ceil(16) as usize;
         let mbh = cfg.height.div_ceil(16) as usize;
         // An interlaced frame is a whole number of macroblock pairs, cropped in units of 4 lines (7.4.2.1.1).
-        if cfg.interlaced.is_some() && (mbh % 2 != 0 || (mbh as u32 * 16 - cfg.height) % 4 != 0) {
+        let crop = cfg.height.div_ceil(16) * 16 - cfg.height;
+        if cfg.interlaced.is_some() && (!mbh.is_multiple_of(2) || !crop.is_multiple_of(4)) {
             return Err(Error::InvalidConfig(format!("an interlaced picture {} lines high is not a whole number of macroblock pairs", cfg.height)));
         }
         let fps = cfg.fps_num as f64 / cfg.fps_den as f64;

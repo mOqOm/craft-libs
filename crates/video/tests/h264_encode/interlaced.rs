@@ -118,3 +118,22 @@ fn an_interlaced_picture_of_an_odd_number_of_macroblock_rows_is_refused() {
     cfg.interlaced = Some(FieldOrder::TopFirst);
     assert!(Encoder::new(cfg).is_ok());
 }
+
+/// Interlaced coding is allowed at levels 2.1 to 4.1 only (Table A-4): a small picture is said to be level 2.1, and
+/// a picture that needs a level above 4.1 (1080 lines at 60 frames a second) is refused.
+#[test]
+fn an_interlaced_stream_keeps_to_levels_2_1_to_4_1() {
+    let (w, h) = (352, 288);
+    let mut cfg = EncoderConfig::new(w as u32, h as u32, 30_000, 1001);
+    cfg.interlaced = Some(FieldOrder::TopFirst);
+    let mut enc = Encoder::new(cfg).unwrap();
+    let mut packets = enc.encode(&synth(w, h, 0).frame(), 0).unwrap();
+    packets.extend(enc.flush());
+    let data = &packets[0].data;
+    // The sequence parameter set's NAL unit: profile_idc, the constraint flags, then level_idc.
+    let sps = data.windows(4).position(|b| b[..3] == [0, 0, 1] && b[3] & 0x1f == 7).unwrap() + 4;
+    assert_eq!(data[sps + 2], 21);
+    let mut cfg = EncoderConfig::new(1920, 1080, 60, 1);
+    cfg.interlaced = Some(FieldOrder::TopFirst);
+    assert!(Encoder::new(cfg).is_err());
+}

@@ -233,6 +233,7 @@ mod held {
             color: h264::decode::ColorInfo { full_range: false, primaries: 1, transfer: 1, matrix: 1 },
             sar: (0, 0),
             draft: false,
+            structure: h264::decode::PictureStructure::Frame,
         }
     }
 

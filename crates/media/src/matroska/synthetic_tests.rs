@@ -228,10 +228,12 @@ fn synthetic_file() {
     assert_seek_builds_an_index(&bytes);
 }
 
-/// An in-memory [`crate::matroska::IndexStore`] that counts what it is asked for one key (other tests
-/// open files while it is registered; theirs are kept too but not counted).
+/// An in-memory [`crate::matroska::IndexStore`] that counts what it is asked for one key on one
+/// thread (other tests open files, the same one too, while it is registered; theirs are kept but
+/// not counted).
 struct CountingStore {
     key: String,
+    thread: std::thread::ThreadId,
     kept: std::sync::Mutex<std::collections::HashMap<String, Vec<u8>>>,
     loads: std::sync::atomic::AtomicUsize,
     saves: std::sync::atomic::AtomicUsize,
@@ -239,13 +241,13 @@ struct CountingStore {
 
 impl crate::matroska::IndexStore for CountingStore {
     fn load(&self, key: &str) -> Option<Vec<u8>> {
-        if key == self.key {
+        if key == self.key && std::thread::current().id() == self.thread {
             self.loads.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
         }
         self.kept.lock().unwrap().get(key).cloned()
     }
     fn save(&self, key: &str, index: &[u8]) {
-        if key == self.key {
+        if key == self.key && std::thread::current().id() == self.thread {
             self.saves.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
         }
         self.kept.lock().unwrap().insert(key.to_owned(), index.to_vec());
@@ -270,6 +272,7 @@ fn an_index_store_keeps_the_scan() {
     let key = crate::matroska::index_store::key_of(&bytes[..]).unwrap();
     let store = std::sync::Arc::new(CountingStore {
         key: key.clone(),
+        thread: std::thread::current().id(),
         kept: std::sync::Mutex::default(),
         loads: std::sync::atomic::AtomicUsize::new(0),
         saves: std::sync::atomic::AtomicUsize::new(0),
